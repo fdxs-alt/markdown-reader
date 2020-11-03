@@ -1,12 +1,29 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 
 import marked from "marked";
-import { remote, ipcRenderer } from 'electron'
-const { getFileFromUser } = remote.require('./main')
+import { remote, ipcRenderer, shell } from 'electron'
+const { getFileFromUser, saveMd, saveHTML, openFile } = remote.require('./main')
 import { basename } from 'path'
 
 window.onload = function () {
   
+
+  document.addEventListener('dragstart', (e) => {
+    e.preventDefault()
+  })
+
+  document.addEventListener('dragover', (e) => {
+    e.preventDefault()
+  })
+
+  document.addEventListener('dragleave', (e) => {
+    e.preventDefault()
+  })
+
+  document.addEventListener('drop', (e) => {
+    e.preventDefault()
+  })
+
   let filePath: string | null = null;
   let originalContent = '';
 
@@ -30,6 +47,43 @@ window.onload = function () {
   
   const newFileButton = document.querySelector('.new-file') as HTMLButtonElement;
 
+  const getDraggedFile = (e: DragEvent) => e.dataTransfer?.items[0]
+
+  const getDroppedFile = (e: DragEvent) => e.dataTransfer?.files[0]
+
+  const isFileTypeSupported = (file: DataTransferItem | File ) => {
+    return ['text/plain', 'text/markdown'].includes(file.type)
+  }
+
+  markdownView.addEventListener('dragover', (e) => {
+    const file = getDraggedFile(e)
+    if(isFileTypeSupported(file as DataTransferItem)) {
+      markdownView.classList.add('drag-over')
+    }
+    else {
+      markdownView.classList.add('drag-error')
+    }
+  })
+
+  markdownView.addEventListener('dragleave', (e) => {
+    markdownView.classList.remove('drag-over')
+    markdownView.classList.remove('drag-error')
+  })
+
+  markdownView.addEventListener('drop', (e) => {
+    const file = getDroppedFile(e);
+
+    if(isFileTypeSupported(file as File)) {
+      openFile(file?.path)
+    }   
+    else {
+      alert('File not supported');
+    }
+
+    markdownView.classList.remove('drag-over')
+    markdownView.classList.remove('drag-error')
+  })
+
   const renderHTML = (markdown: string) => {
     htmlView.innerHTML = marked(markdown);
   };
@@ -47,10 +101,11 @@ window.onload = function () {
       currentWindow.setDocumentEdited(isEdited);
     }
 
-    
-
     saveFileButton.disabled = !isEdited;
     revertButton.disabled = !isEdited;
+
+    showFileButton.disabled = !filePath;
+    openInDefaultButton.disabled = !filePath;
 
     currentWindow.setTitle(title);
   }
@@ -63,8 +118,34 @@ window.onload = function () {
     updateUI(currentConent !== originalContent)
   });
 
+  saveFileButton.addEventListener('click', (e) => {
+    saveMd(filePath, markdownView.value);
+  })
+
   openFileButton.addEventListener('click', (e) => {
     getFileFromUser()
+  })
+
+  saveHTMLButton.addEventListener('click', () => {
+    saveHTML(htmlView.innerHTML)
+  })
+
+  showFileButton.addEventListener('click', () => {
+    if(!filePath) {
+      alert('No filepath')
+    }
+    else {
+      shell.showItemInFolder(filePath)
+    }
+  });
+
+  openInDefaultButton.addEventListener('click', () => {
+    if(!filePath) {
+      alert('No filepath')
+    }
+    else {
+      shell.openExternal(filePath)
+    }
   })
 
   ipcRenderer.on('file-opened', (_, file: string, conent: string ) => {
@@ -78,5 +159,8 @@ window.onload = function () {
 
     updateUI()
   })
+
+
+  
 };
 
